@@ -82,16 +82,17 @@ static bool should_add_input_device(int fd, bool allow_touch_inputs) {
     return false;
   }
 
-  // We assume that only EV_ABS, EV_KEY, EV_REL, and EV_SW event types are ever needed.
+  // EV_REL can be explicitly disallowed.
+  // This is needed to skip sensor inputs on some devices.
+  if (should_skip_ev_rel() && test_bit(EV_REL, ev_bits))
+    return false;
+
   // EV_ABS is only allowed if allow_touch_inputs is set.
-  // EV_REL can be explicitly disallowed. This is needed to skip sensor inputs on some devices.
-  if (!test_bit(EV_KEY, ev_bits) &&
-      !test_bit(EV_SW, ev_bits) &&
-      (should_skip_ev_rel() || !test_bit(EV_REL, ev_bits))) {
-    if (!allow_touch_inputs || !test_bit(EV_ABS, ev_bits)) {
-      return false;
-    }
-  }
+  if (!allow_touch_inputs && test_bit(EV_ABS, ev_bits))
+    return false;
+    
+  if (!test_bit(EV_ABS, ev_bits) && !test_bit(EV_KEY, ev_bits) && !test_bit(EV_SW, ev_bits))
+  	return false;
 
   return true;
 }
