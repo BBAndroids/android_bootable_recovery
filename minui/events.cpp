@@ -69,6 +69,11 @@ static bool should_skip_ev_rel() {
   return prop;
 }
 
+static bool should_skip_not_direct() {
+  static bool prop = android::base::GetBoolProperty("ro.recovery.skip_ev_not_direct_input", false);
+  return prop;
+}
+
 static bool test_bit(size_t bit, unsigned long* array) { // NOLINT
   return (array[bit / BITS_PER_LONG] & (1UL << (bit % BITS_PER_LONG))) != 0;
 }
@@ -91,7 +96,20 @@ static bool should_add_input_device(int fd, bool allow_touch_inputs) {
   if (!allow_touch_inputs && test_bit(EV_ABS, ev_bits))
     return false;
     
-  if (!test_bit(EV_ABS, ev_bits) && !test_bit(EV_KEY, ev_bits) && !test_bit(EV_SW, ev_bits))
+  if (test_bit(EV_ABS, ev_bits)) {
+    // INPUT_PROP_DIRECT can be explicitly disallowed.
+    // This is needed to skip sensor inputs and touchpads on some devices.
+    if (should_skip_not_direct()) {
+      unsigned long ev_props[BITS_TO_LONGS(INPUT_PROP_MAX)];  // NOLINT
+      if (ioctl(fd, EVIOCGPROP(sizeof(ev_props)), ev_props) == -1) {
+        return false;
+      }
+    
+      if (!test_bit(INPUT_PROP_DIRECT, ev_props)) {
+        return false;
+      }
+    }
+  } else if (!test_bit(EV_KEY, ev_bits) && !test_bit(EV_SW, ev_bits))
   	return false;
 
   return true;
